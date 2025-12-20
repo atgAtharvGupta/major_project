@@ -12,6 +12,8 @@ nest_asyncio.apply()
 # Initialize Hugging Face Embedding
 Settings.embed_model = HuggingFaceEmbedding(model_name=hf_embedding_model, trust_remote_code=True)
 
+from tqdm import tqdm
+
 def query_and_generate_reports(queries: List[str]) -> List[Dict[str, str]]:
     """
     Query the knowledge graph for each query, aggregate context, and generate summary reports.
@@ -19,18 +21,33 @@ def query_and_generate_reports(queries: List[str]) -> List[Dict[str, str]]:
     """
     results = []
 
-    for query in queries:
-        print(f"Processing query: {query}")
+    for query in tqdm(queries, desc="Processing Queries", unit="query"):
+        tqdm.write("\n" + "="*80)
+        tqdm.write(f"PROCESSING QUERY: {query}")
+        tqdm.write("="*80)
+        
+        tqdm.write("\n[Step 1] Querying Knowledge Graph for context...")
         context = query_engine.query(query)
+        
+        if hasattr(context, 'source_nodes'):
+            num_nodes = len(context.source_nodes)
+            tqdm.write(f"  > Retrieved {num_nodes} relevant nodes/fragments from the graph.")
+        
+        response_text = str(context)
+        preview = response_text[:150].replace("\n", " ") + "..." if len(response_text) > 150 else response_text
+        tqdm.write(f"  > Initial Graph Answer: {preview}")
 
         # Generate a summary report using the aggregated context
+        tqdm.write("\n[Step 2] Generating Executive Summary Report...")
         report = generate_summary_report(context, query)
+        tqdm.write("  > Report generated successfully.")
 
         results.append({
             "query": query,
             "context": context,
             "report": report
         })
+        tqdm.write("-" * 80 + "\n")
 
     return results
 
@@ -81,10 +98,10 @@ query_engine = index.as_query_engine(
 # Define a list of queries, Different kinds of queries to see the effectiveness of in EV sector
 queries = [
     "How to invest in the EV sector? Summarize the most important financial trends in the EV Sector.",
-    "What are the recent financial sentiments about renewable energy investments?",
-    "Summarize the financial outlook for the technology sector in 2024.",
-    "What are the key financial risks in the automotive industry this year?",
-    "Provide insights on the financial performance of AI startups in the US."
+    # "What are the recent financial sentiments about renewable energy investments?",
+    # "Summarize the financial outlook for the technology sector in 2024.",
+    # "What are the key financial risks in the automotive industry this year?",
+    # "Provide insights on the financial performance of AI startups in the US."
 ]
 
 # Execute the queries and generate reports

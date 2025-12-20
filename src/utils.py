@@ -19,57 +19,50 @@ def search_with_google_api(query):
 
 def generate_search_queries(user_input):
     """
-    Generates a list of 5-7 detailed and relevant search queries for financial sentiment analysis
-    based on the user's input, such as a target sector, field, or region.
-    Uses Ollama LLM for query generation.
+    Generates keyword-optimized search queries for Indian financial sentiment analysis.
     """
+    # Refined prompt for keyword-heavy, Indian-market focused queries
     prompt = f"""
-    You are a financial analyst and search query expert. Based on the following user input, generate a list of 5-7 search queries
-    for financial sentiment analysis based on user input. Ensure the queries cover diverse aspects of the topic, including sector-specific trends,
-    regional financial overviews, and broader financial landscapes. The queries should focus on extracting data relevant to sentiment
-    and performance analysis.
+    You are a financial data engineer. Convert the user input into 5-7 HIGH-DENSITY search queries 
+    optimized for search engines and news scrapers. 
+    
+    Context: Indian Financial Market (NSE/BSE).
+    Target: {user_input}
+    
+    Rules for queries:
+    1. Use Boolean operators (AND, OR) where helpful.
+    2. Include Indian indices/regulators (Nifty, Sensex, SEBI, RBI) if relevant.
+    3. Include sentiment-heavy terms (bullish, bearish, brokerage view, target price, outlook).
+    4. Focus on performance keywords (Q3 results, EBITDA margins, YoY growth, FII DII activity).
+    5. No full sentences. Use keyword strings.
 
-    User Input: {user_input}
-
-    Strictly output the queries as a python list of strings. Do not add any additional comments.
+    Output format: Strictly a Python list of strings.
     """
 
-    # Use Ollama Python library directly
     try:
         response = ollama.chat(
             model=ollama_model,
             messages=[
-                {"role": "system", "content": "You are an expert in generating search queries for financial sentiment analysis."},
+                {"role": "system", "content": "You generate keyword-optimized search strings for Indian finance."},
                 {"role": "user", "content": prompt}
             ],
-            options={
-                "temperature": 0.0,
-                "num_predict": 200  # max_tokens equivalent in Ollama
-            }
+            options={"temperature": 0.2, "num_predict": 250}
         )
         
         queries_text = response["message"]["content"].strip()
         
-        # Safely evaluate the list (improved safety by checking if it's a list)
-        # Try to parse as JSON first, then fallback to eval
-        try:
-            queries = json.loads(queries_text)
-        except json.JSONDecodeError:
-            # If JSON parsing fails, use eval as fallback
-            queries = eval(queries_text)
-        
-        return queries if isinstance(queries, list) else eval(queries_text)
-    except Exception as e:
-        print(f"Error generating search queries: {e}")
-        # Fallback to basic queries
-        return [
-            f"{user_input} financial sentiment",
-            f"{user_input} investment trends",
-            f"{user_input} market analysis",
-            f"{user_input} financial outlook",
-            f"{user_input} sector performance"
-        ]
+        # Clean potential markdown code blocks if the LLM includes them
+        if "```python" in queries_text:
+            queries_text = queries_text.split("```python")[1].split("```")[0].strip()
+        elif "```" in queries_text:
+            queries_text = queries_text.split("```")[1].split("```")[0].strip()
 
+        queries = eval(queries_text)
+        return queries if isinstance(queries, list) else []
+    except Exception as e:
+        print(f"Error: {e}")
+        return [f"{user_input} Indian market sentiment", f"{user_input} NSE BSE news"]
+    
 def fetch_full_content(url):
     """
     Fetches the full content of a webpage given its URL.
@@ -94,6 +87,8 @@ def fetch_full_content(url):
         print(f"Error fetching content from {url}: {e}")
         return None
 
+from tqdm import tqdm
+
 def create_dataset_from_queries(queries, directory="dataset"):
     """
     Process search queries and save results as text files in the same directory.
@@ -103,17 +98,17 @@ def create_dataset_from_queries(queries, directory="dataset"):
 
     file_count = 1  # To ensure unique filenames across all queries
 
-    for query in queries:
-        print(f"Processing query: {query}")
+    for query in tqdm(queries, desc="Collecting Data", unit="query"):
+        tqdm.write(f"Processing query: {query}")
         valid_count = 0
         page_number = 1
 
         while valid_count < 10:
-            print(f"Fetching search results, page {page_number}...")
+            tqdm.write(f"  > Fetching search results, page {page_number}...")
             results = search_with_google_api(query + f"&start={page_number * 10}")
 
             if not results:
-                print("No more results found. Try refining the query.")
+                tqdm.write("  > No more results found. Try refining the query.")
                 break
 
             for result in results:
@@ -134,15 +129,15 @@ def create_dataset_from_queries(queries, directory="dataset"):
                         f.write(f"Link: {link}\n")
                         f.write(f"Snippet: {snippet}\n\n")
                         f.write(f"Full Content:\n{full_content}")
-                    print(f"Saved: {filename}")
+                    tqdm.write(f"    Saved: {filename} - {title[:60]}...")
                     valid_count += 1
                     file_count += 1
                 else:
-                    print(f"Skipped: {link} (No valid content)")
+                    tqdm.write(f"    Skipped: {link} (No valid content)")
 
             page_number += 1  # Move to the next page of results
 
-    print(f"Finished processing all queries. Total files saved: {file_count - 1}")
+    tqdm.write(f"Finished processing all queries. Total files saved: {file_count - 1}")
 
 
 def generate_summary_report(context: str, query: str) -> str:
