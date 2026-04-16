@@ -1,0 +1,14 @@
+.env
+frontend/.env
+__pycache__/
+*.py[cod]
+*.pyo
+.streamlit/secrets.toml
+venv/
+.venv/
+env/
+dataset/
+storage/
+*.log
+.DS_Store
+node_modules/
